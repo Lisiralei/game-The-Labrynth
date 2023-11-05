@@ -31,9 +31,16 @@ namespace OOPgameLbrynth
 
         public bool passable;
 
-
+        public char GetSym()
+        {
+            return symbol;
+        }
     }
 
+    class Empty : GameObject
+    {
+
+    }
 
     abstract class Entity : GameObject
     {
@@ -103,13 +110,16 @@ namespace OOPgameLbrynth
             mapTiles = new MapTile[height, width];
             for (int i = 1; i < height - 1; i++)
             {
-                mapTiles[i, 0] = mapTiles[i, width - 1] = new DungeonWall();
+                mapTiles[i, 0] = new MapTile(new Empty(), new Position(i, 0), true);
+                mapTiles[i, width - 1] = new MapTile(new Empty(), new Position(i, width-1), true);
+
                 for (int j = 1; j < width - 1; j++)
-                    mapTiles[i, j] = new Empty();
+                    mapTiles[i, j] = new MapTile(new Empty(), new Position(i,j), true);
             }
             for (int i = 0; i < width; i++)
             {
-                mapTiles[0, i] = mapTiles[height - 1, i] = new DungeonWall();
+                mapTiles[0, i] = new MapTile(new Empty(), new Position(0,i), true);
+                mapTiles[height - 1, i] = new MapTile(new Empty(), new Position(height-1,i), true);
             }
         }
 
@@ -130,80 +140,100 @@ namespace OOPgameLbrynth
 
 }
 
-abstract class MapTile
+class MapTile
+{
+    public Position tilePosition;
+    public GameObject MainTile;
+    public List<GameObject> ObjectsWithinTile;
+    public bool passable { get; protected set; }
+    
+    public MapTile(GameObject mainTile, Position tilePosition, bool passable)
     {
-        public Position tilePosition;
-        public List<Object> ObjectsWithinTile;
-        readonly bool passable;
+        MainTile = mainTile;
+        this.passable = passable;
+        this.tilePosition = tilePosition;
+        ObjectsWithinTile = new List<GameObject>();
+    }
+    public char GetSym()
+    {
+        return ((ObjectsWithinTile.Count == 0) ?
+            (MainTile.GetSym()) :
+            (ObjectsWithinTile[ObjectsWithinTile.Count - 1].GetSym()));
+    }
+}
+
+//class RoadTile : MapTile
+//{
+//    public RoadTile(GameObject mainTile,Position tilePosition)
+//    {
+//        this.tilePosition = tilePosition;
+//        MainTile= mainTile;
+//        passable = true;
+//    }
+//}
+
+
+internal class Program
+{
+    static void Main(string[] args)
+    {
+        Game game = new Game();
+        game.Start();
+        game.Update();
+    }
+}
+
+
+class Game
+{
+    public GameObject? player;
+    private Map? myMap;
+    byte fps = 20;
+    string str = "";
+    bool exit = false;
+    public void SetFPS(byte fps)
+    {
+        if (fps < 5 || fps > 240) this.fps = 20;
+        else this.fps = fps;
+    }
+    public void Start()
+    {
+        myMap = new Map();
+        myMap.Create();
+
     }
 
-    class RoadTile : MapTile
+    public void Update()
     {
+        Thread.Sleep(1000 / fps);
+        Console.Clear();
+        myMap.Show();
+        if (Console.KeyAvailable)
+            KeyDownFunction(Console.ReadKey(true).Key);
+        Console.WriteLine(str);
 
+        if (!exit) Update();
     }
 
-
-    internal class Program
+    private void KeyDownFunction(ConsoleKey key)
     {
-        static void Main(string[] args)
+        switch (key)
         {
-            Game game = new Game();
-            game.Start();
-            game.Update();
+            case ConsoleKey.Escape:
+                exit = true;
+                break;
+            case ConsoleKey.W:
+
+                break;
+            case ConsoleKey.S:
+
+                break;
+            case ConsoleKey.A:
+
+                break;
+            case ConsoleKey.D:
+
+                break;
         }
     }
-
-
-    class Game
-    {
-        public GameObject? player;
-        private Map? myMap;
-        byte fps = 20;
-        string str = "";
-        bool exit = false;
-        public void SetFPS(byte fps)
-        {
-            if (fps < 5 || fps > 240) this.fps = 20;
-            else this.fps = fps;
-        }
-        public void Start()
-        {
-            myMap = new Map();
-            myMap.Create();
-
-        }
-
-        public void Update()
-        {
-            Thread.Sleep(1000 / fps);
-            Console.Clear();
-            myMap.Show();
-            if (Console.KeyAvailable)
-                KeyDownFunction(Console.ReadKey(true).Key);
-            Console.WriteLine(str);
-
-            if (!exit) Update();
-        }
-
-        private void KeyDownFunction(ConsoleKey key)
-        {
-            switch (key)
-            {
-                case ConsoleKey.Escape:
-                    exit = true;
-                    break;
-                case ConsoleKey.W:
-
-                    break;
-                case ConsoleKey.S:
-
-                    break;
-                case ConsoleKey.A:
-
-                    break;
-                case ConsoleKey.D:
-
-                    break;
-            }
-        }
-    }
+}
