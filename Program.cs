@@ -31,6 +31,11 @@ namespace OOPgameLbrynth
 
         public bool passable;
 
+        public GameObject(Position pos)
+        {
+            Position = pos;
+        }
+
         public char GetSym()
         {
             return symbol;
@@ -39,16 +44,35 @@ namespace OOPgameLbrynth
 
     class Empty : GameObject
     {
+        public Empty(Position EmptyPosition):base(EmptyPosition)
+        {
+            passable = true;
+        }
+    }
 
+    class DungeonWall : GameObject
+    {
+        public DungeonWall(Position WallPosition):base(WallPosition)
+        {
+            passable = false;
+            symbol = '#';
+        }
     }
 
     abstract class Entity : GameObject
     {
+        public Entity(Position EntityPosition) : base(EntityPosition)
+        {
 
+        }
     }
 
     class Projectile : Entity, MovementBehaviour
     {
+        public Projectile(Position ProjectPosition) : base(ProjectPosition)
+        {
+
+        }
         public void Move(Position targetPosition)
         {
 
@@ -57,6 +81,10 @@ namespace OOPgameLbrynth
 
     class Archer : Entity, MovementBehaviour, AttackBehaviour
     {
+        public Archer(Position EntityPosition) : base(EntityPosition)
+        {
+
+        }
         public void Move(Position targetPosition)
         {
 
@@ -72,6 +100,10 @@ namespace OOPgameLbrynth
 
     class Knight : Entity, MovementBehaviour, AttackBehaviour
     {
+        public Knight(Position EntityPosition) : base(EntityPosition)
+        {
+        }
+
         public void Move(Position targetPosition)
         {
 
@@ -83,14 +115,6 @@ namespace OOPgameLbrynth
         }
     }
 
-    class DungeonWall : GameObject
-    {
-        DungeonWall(Position WallPosition)
-        {
-            Position = WallPosition;
-            passable = false;
-        }
-    }
 
     class Map
     {
@@ -110,16 +134,16 @@ namespace OOPgameLbrynth
             mapTiles = new MapTile[height, width];
             for (int i = 1; i < height - 1; i++)
             {
-                mapTiles[i, 0] = new MapTile(new Empty(), new Position(i, 0), true);
-                mapTiles[i, width - 1] = new MapTile(new Empty(), new Position(i, width-1), true);
+                mapTiles[i, 0] = new MapTile(new DungeonWall(new Position(i,0)), new Position(i, 0), true);
+                mapTiles[i, width - 1] = new MapTile(new DungeonWall(new Position(i, width-1)), new Position(i, width-1), true);
 
                 for (int j = 1; j < width - 1; j++)
-                    mapTiles[i, j] = new MapTile(new Empty(), new Position(i,j), true);
+                    mapTiles[i, j] = new MapTile(new Empty(new Position(i, j)), new Position(i,j), true);
             }
             for (int i = 0; i < width; i++)
             {
-                mapTiles[0, i] = new MapTile(new Empty(), new Position(0,i), true);
-                mapTiles[height - 1, i] = new MapTile(new Empty(), new Position(height-1,i), true);
+                mapTiles[0, i] = new MapTile(new DungeonWall(new Position(0,i)), new Position(0,i), true);
+                mapTiles[height - 1, i] = new MapTile(new DungeonWall(new Position(height-1,i)), new Position(height-1,i), true);
             }
         }
 
