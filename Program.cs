@@ -1,4 +1,5 @@
 ﻿using OOPgameLbrynth;
+using System.ComponentModel;
 using System.Numerics;
 using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
@@ -116,10 +117,16 @@ namespace OOPgameLbrynth
 
 		public MapTile this[Position position]
 		{
-			get => mapTiles[position.x, position.y];
-			set => mapTiles[position.x, position.y] = value;
+			get => mapTiles[position.y, position.x];
+			set => mapTiles[position.y, position.x] = value;
 
-        }
+		}
+		public MapTile this[int x, int y]
+		{
+			get => mapTiles[y, x];
+			set => mapTiles[y, x] = value;
+		}
+
 
 		private void SetOuterWalls(int height, int width)  //Infill Edges with impassable walls
 		{
@@ -134,11 +141,11 @@ namespace OOPgameLbrynth
 					new Position(i, width - 1)
 					);
 
-				for (int j = 1; j < width - 1; j++)
-					mapTiles[i, j] = new MapTile(
-						new RoadTile(new Position(i, j)),
-						new Position(i, j)
-						);
+				//for (int j = 1; j < width - 1; j++)
+				//	mapTiles[i, j] = new MapTile(
+				//		new RoadTile(new Position(i, j)),
+				//		new Position(i, j)
+				//		);
 			}
 			for (int i = 0; i < width; i++)
 			{
@@ -155,8 +162,8 @@ namespace OOPgameLbrynth
 
 		public void Create()
 		{
-			height = 20;
-			width = 40;
+			height = 21;
+			width = 41;
 			mapTiles = new MapTile[height, width];
 
 			SetOuterWalls(height, width);
@@ -177,23 +184,12 @@ class MapTile
 
 	public bool Passable { get; protected set; }
 
-	public MapTile(GroundTile groundTile, Position tilePosition)
+	public MapTile(GroundTile? groundTile, Position tilePosition)
 	{
 		this.groundTile = groundTile;
-		if (groundTile.passable == true)
-		{
-			bool isPassable = true;
-			
-			//for (int i = 0; i < objectsInTile.Count; i++)
-			//{
-			//	if (objectsInTile[i].passable == false)
-			//	{
-			//		isPassable = false;
-			//		break;
-			//	}
-			//}
-			
-			Passable = isPassable;
+		if (groundTile != null && groundTile.passable == true)
+		{	
+			Passable = true;
 		}
 		else
 		{
@@ -248,7 +244,7 @@ internal class Program
 {
 	static void Main(string[] args)
 	{
-        Game game = new Game();
+		Game game = new Game();
 		game.Start();
 		game.Update();
 	}
@@ -290,36 +286,132 @@ class GameRenderer
 	
 }
 
-/*class MazeGenerator
+
+class MazeGenerator
 {
-	private List<int>[,] visitedTiles = new List<MapTile>();
-	private List<int>[,] totalTiles;
-	private List<int>[,] canBeVisited = new List<MapTile>();
-	private Position currentTile;
+	private Map mazeMap;
+	//private List<int>[,] visitedTiles = new List<MapTile>();
+	//private List<int>[,] totalTiles;
+	//private List<int>[,] canBeVisited = new List<MapTile>();
+	//private Position currentTile;
+	Random randomness = new Random();
 
 
-	public void generateMazeFullyConnected(Map mazeMap, Position startingPosition = new Position(1, 1))
+
+	public void pathDiggerRecursive(Position fromPosition)
 	{
-        totalTiles = new List<int>(mazeMap.width, mazeMap.width);
-        for (int i = 0; i < mazeMap.width; i++)
-        {
-            for (int j = 0;j < mazeMap.height; j++)
+		mazeMap[fromPosition] = new MapTile(new RoadTile(fromPosition), fromPosition);
+
+		int[] directive = { 0, 0, 0, 0 };
+
+		int directionSelect;
+
+		for (int ordinal = 4; ordinal > 0; ordinal--)
+		{
+			directionSelect = randomness.Next(ordinal);
+
+			for (int i = 0; i <= directionSelect; i++)
 			{
-				if (i == 0 || j == 0 || i == mazeMap.width || j == mazeMap.height)
+				if (directive[i] == 1)
 				{
-                    totalTiles[i, j] = 5;
+					directionSelect++;
 				}
-				else totalTiles[i, j] = 0;
 			}
-        }
+			directive[directionSelect] = 1;
 
-        currentTile = startingPosition;
-        visitedTiles.Add(currentTile);
+			switch (directionSelect)
+			{
+				case 0:
+					if (fromPosition.x > 2) //outOfBounds checks
+					{
+						Position digPosition = new Position(fromPosition.x - 1, fromPosition.y);
+						Position destinationPosition = new Position(fromPosition.x - 2, fromPosition.y);
+
+						if (mazeMap[destinationPosition] == null) // Check if the digger has been there
+						{
+							mazeMap[digPosition] = new MapTile(new RoadTile(digPosition), digPosition);
+							pathDiggerRecursive(destinationPosition);
+						}
+					}
+					break;
+
+				case 1:
+					if (fromPosition.y > 2)
+					{
+						Position digPosition = new Position(fromPosition.x, fromPosition.y - 1);
+						Position destinationPosition = new Position(fromPosition.x, fromPosition.y - 2);
+
+						if (mazeMap[destinationPosition] == null)
+						{
+							mazeMap[digPosition] = new MapTile(new RoadTile(digPosition), digPosition);
+							pathDiggerRecursive(destinationPosition);
+						}
+					}
+					break;
+
+				case 2:
+					if (fromPosition.x < mazeMap.width - 3)
+					{
+						Position digPosition = new Position(fromPosition.x + 1, fromPosition.y);
+						Position destinationPosition = new Position(fromPosition.x + 2, fromPosition.y);
+
+						if (mazeMap[destinationPosition] == null)
+						{
+							mazeMap[digPosition] = new MapTile(new RoadTile(digPosition), digPosition);
+							pathDiggerRecursive(destinationPosition);
+						}
+					}
+					break;
+
+				case 3:
+					if (fromPosition.y < mazeMap.height - 3)
+					{
+						Position digPosition = new Position(fromPosition.x, fromPosition.y + 1);
+						Position destinationPosition = new Position(fromPosition.x, fromPosition.y + 2);
+
+						if (mazeMap[destinationPosition] == null)
+						{
+							mazeMap[digPosition] = new MapTile(new RoadTile(digPosition), digPosition);
+							pathDiggerRecursive(destinationPosition);
+						}
+					}
+					break;
+
+			}
+
+		}
+	}
+
+	public MazeGenerator(Map mazeMap)
+	{
+		this.mazeMap = mazeMap;
+	}
+
+	public void fillVoidWithWalls()
+	{
+		for (int i = 0; i < mazeMap.width; i++)
+		{
+			for (int j = 0; j < mazeMap.height; j++)
+			{
+				if (mazeMap[i, j] == null)
+				{
+					Position pos = new Position(i, j);
+
+                    mazeMap[i, j] = new MapTile(new DungeonWall(pos), pos);
+				}
+			}
+		}
+	}
 
 
+	public void generateMazeFullyConnected(Position startingPosition)
+	{
+		pathDiggerRecursive(startingPosition);
+
+		fillVoidWithWalls();
 	}
 }
-*/
+
 
 
 
@@ -328,6 +420,7 @@ class Game
 {
 	public GameObject? player;
 	private Map? currentMap;
+	private MazeGenerator? mazeGen;
 
 	private GameRenderer? activeRenderer;
 
@@ -345,6 +438,9 @@ class Game
 		currentMap = new Map();
 		currentMap.Create();
 
+		mazeGen = new MazeGenerator(currentMap);
+		mazeGen.generateMazeFullyConnected(new Position(1, 1));
+
 		activeRenderer = new GameRenderer(currentMap);
 
 
@@ -355,16 +451,16 @@ class Game
 	{
 		while (!exitCall)
 		{
-            Thread.Sleep(1000 / fps);
+			Thread.Sleep(1000 / fps);
 
-            Console.Clear();
+			Console.Clear();
 			activeRenderer.DrawFrame();
 
 			if (Console.KeyAvailable)
 				KeyDownFunction(Console.ReadKey(true).Key);
 			Console.WriteLine("");
-            
-        }
+			
+		}
 	}
 
 	private void KeyDownFunction(ConsoleKey key)
