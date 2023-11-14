@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Numerics;
 using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Transactions;
 
@@ -15,6 +16,14 @@ namespace OOPgameLbrynth
 		public int y;
 		public Position(int x, int y) { this.x = x; this.y = y; }
 		public Position(Position position) { this.x = position.x; this.y = position.y; }
+		public static bool operator ==(Position a, Position b) { if (a.x == b.x && a.y == b.y) return true; return false; }
+		public static bool operator !=(Position a, Position b) { return !(a == b); }
+
+		public static Position operator +(Position pos, (int x, int y) offset)
+		{
+			return new Position(pos.x + offset.x, pos.y + offset.y);
+		}
+
 	}
 
 	interface MovementBehaviour
@@ -42,6 +51,7 @@ namespace OOPgameLbrynth
 			Position = pos;
 		}
 
+
 		public char GetRepr()
 		{
 			return symbol;
@@ -51,8 +61,12 @@ namespace OOPgameLbrynth
 
 	abstract class Entity : GameObject
 	{
-		private int health = 100;
-		private bool active = true;
+		private Map? currentMap;
+		protected int health = 100;
+		protected bool active = true;
+
+		public List<Position> vision;
+
 		public Entity(Position EntityPosition) : base(EntityPosition)
 		{
 
@@ -70,17 +84,39 @@ namespace OOPgameLbrynth
 			}
 			else { }
 		}
-		public void Perish()
+		public virtual void Perish()
 		{
 			active = false;
 			passable = true;
 
 		}
+
+		public abstract void UpdateVision();
+
 	}
 
-	class Projectile : Entity, MovementBehaviour, AttackBehaviour
+	abstract class AgressiveEntity : Entity, MovementBehaviour, AttackBehaviour
 	{
 		public uint damage;
+        public AgressiveEntity(Position EntityPosition) : base(EntityPosition)
+        {
+
+        }
+
+        public void Move(Position targetPosition)
+		{
+
+		}
+		public void AttackTarget(Entity targetEntity)
+		{
+            targetEntity.TakeDamage((int)damage);
+        }
+
+	}
+
+
+	class Projectile : AgressiveEntity 
+	{
 		public Projectile(Position ProjectPosition) : base(ProjectPosition)
 		{
 
@@ -93,14 +129,22 @@ namespace OOPgameLbrynth
 		{
 			targetEntity.TakeDamage((int)damage);
 		}
+
+		public override void UpdateVision()
+		{
+
+		}
 	}
 
-	class Archer : Entity, MovementBehaviour, AttackBehaviour
+	class Archer : AgressiveEntity
 	{
 		public Archer(Position EntityPosition) : base(EntityPosition)
 		{
 			symbol = 'D';
+			vision = new List<Position>();
+			//UpdateVision();
 		}
+
 		public void Move(Position targetPosition)
 		{
 
@@ -111,16 +155,34 @@ namespace OOPgameLbrynth
 
 		}
 
+		public override void UpdateVision()
+		{
+			vision.Clear();
+			for (int i = -1; i < 2; i++)
+			{
+				for (int j = -1; j < 2; j++)
+				{
+					vision.Add(new Position(this.Position + (i, j)));
+				}
+			}
+		}
+
+		public override void Perish()
+		{
+			base.Perish();
+			symbol = '~'; // heh
+		}
 
 	}
 
-	class Knight : Entity, MovementBehaviour, AttackBehaviour
+	class Knight : AgressiveEntity
 	{
-		public uint damage;
 		public Knight(Position EntityPosition) : base(EntityPosition)
 		{
-			symbol = 'k';
-			damage = 10;
+			symbol = 'K';
+			damage = 1;
+			vision = new List<Position>();
+			//UpdateVision();
 		}
 
 		public void Move(Position targetPosition)
@@ -130,16 +192,37 @@ namespace OOPgameLbrynth
 
 		public void AttackTarget(Entity target)
 		{
+			target.TakeDamage((int)damage);
+		}
 
+		public override void UpdateVision()
+		{
+			vision.Clear();
+			for (int i = -1; i < 2; i++)
+			{
+				for (int j = -1; j < 2; j++)
+				{
+					vision.Add(new Position(Position + (i, j)));
+				}
+			}
+		}
+
+		public override void Perish()
+		{
+			base.Perish();
+			symbol = '~';
 		}
 	}
 
 	class PlayerCharacter : Entity, AttackBehaviour
 	{
 		public uint damage;
+
 		public PlayerCharacter(Position PlayerPosition) : base(PlayerPosition)
 		{
-			symbol = 'p';
+            damage = 50;
+			health = 10000000;
+            symbol = 'p';
 		}
 
 		public void AttackTarget(Entity target)
@@ -147,6 +230,23 @@ namespace OOPgameLbrynth
 
 		}
 
+		public void TakeDamage(int damage)
+		{
+			base.TakeDamage(damage);
+
+			Console.Clear();
+
+			Console.WriteLine($"You took {damage} damage");
+
+			Thread.Sleep(500);
+
+
+		}
+
+		public override void UpdateVision()
+		{
+
+		}
 
 	}
 
@@ -157,6 +257,8 @@ namespace OOPgameLbrynth
 		public MapTile[,] mapTiles;
 		public int height;
 		public int width;
+
+		public Finish? finish;
 
 		public Map()
 		{
@@ -216,7 +318,7 @@ namespace OOPgameLbrynth
 
 			SetOuterWalls(height, width);
 
-			
+
 		}
 
 
@@ -298,13 +400,23 @@ class RoadTile : GroundTile
 
 class DungeonWall : GroundTile
 {
-	//protected new char symbol = '#';
 	public DungeonWall(Position WallPosition) : base(WallPosition)
 	{
 		symbol = '#';
 		passable = false;
 	}
 }
+
+class Finish : GroundTile
+{
+	public Finish(Position position) : base(position)
+	{
+		symbol = 'F';
+		passable = true;
+	}
+}
+
+
 
 
 internal class Program
@@ -508,9 +620,48 @@ class EntityController
 				selectedMapTile.UpdatePassable();
 				entity.Position = spawnPosition;
 				spawned = true;
+				entities.Add(entity);
 			}
 			else spawnTries++;
 		}
+
+	}
+
+	public void UpdateEntities()
+	{
+		for (int i = 0; i < entities.Count; i++) UpdateEntity(entities[i]);
+	}
+
+	public void MakeEntityTryAttack(AgressiveEntity entity)
+	{
+		for (int i = 0; i < entity.vision.Count; i++)
+		{
+			Position checkPosition = new Position(entity.vision[i]);
+			MapTile checkTile = currentMap[new Position(checkPosition)];
+
+			if (!(checkTile == null) && !(checkTile.ObjectsWithinTile == null))
+			{
+				for (int j = 0; j < checkTile.ObjectsWithinTile.Count; j++)
+				{
+					if (checkTile.ObjectsWithinTile[j] is PlayerCharacter)
+					{
+						PlayerCharacter playerCharacter = (checkTile.ObjectsWithinTile[j]) as PlayerCharacter;
+						entity.AttackTarget(playerCharacter);
+					}
+				}
+			}
+		}
+	}
+
+
+	public void UpdateEntity(Entity entity)
+	{
+		if (entity is AgressiveEntity)
+		{
+			entity.UpdateVision();
+            MakeEntityTryAttack(entity as AgressiveEntity);
+        }
+		
 	}
 
 
@@ -521,6 +672,8 @@ class PlayerControls
 	private PlayerCharacter character;
 
 	public Map? currentMap;
+
+	public bool finished = false;
 	
 
 	public PlayerControls(PlayerCharacter character, Map? currentMap)
@@ -540,6 +693,23 @@ class PlayerControls
 			targetTile.ObjectsWithinTile.Add(character);
 			currentPlayerTile.ObjectsWithinTile.Remove(character);
 			character.Position = new Position(target);
+		}
+
+		if (character.Position == currentMap.finish.Position)
+		{
+
+			Thread.Sleep(100);
+
+			Console.Clear();
+
+			Console.WriteLine("Congratulations");
+
+
+			Thread.Sleep(5000);
+
+			finished = true;
+
+
 		}
 
 	}
@@ -600,6 +770,7 @@ class PlayerControls
 		for (int i = 0; i < targetEntities.Count; i++)
 		{
 			targetEntities[i].TakeDamage((int)character.damage);
+			currentMap[targetEntities[i].Position].UpdatePassable();
 		}
 		
 	}
@@ -640,17 +811,38 @@ class Game
 	{
 		currentMap = new Map();
 		currentMap.Create();
-		controls.currentMap = currentMap;
-		
-
-
 		mazeGen = new MazeGenerator(currentMap);
 		mazeGen.generateMazeFullyConnected(new Position(1, 1));
+		controls.currentMap = currentMap;
 
-        currentMap[player.Position].ObjectsWithinTile.Add(player);
+		Position finishPosition = new Position(currentMap.width - 2, currentMap.height - 2);
+		Finish exit = new Finish(finishPosition);
 
 
-        activeRenderer = new GameRenderer(currentMap);
+		int knightsToSpawn = 30;
+		int archersToSpawn = 2;
+
+		
+
+		currentMap[player.Position].ObjectsWithinTile.Add(player);
+
+		currentMap[finishPosition].groundTile = exit;
+		currentMap.finish = exit;
+
+		entityController.currentMap = currentMap;
+
+
+		for (int i = 0; i < knightsToSpawn; i++)
+		{
+			entityController.SpawnEntity(new Knight(new Position(1, 1)));
+		}
+
+		for (int i = 0; i < archersToSpawn; i++)
+		{
+			entityController.SpawnEntity(new Archer(new Position(1, 1)));
+		}
+
+		activeRenderer = new GameRenderer(currentMap);
 
 
 	}
@@ -661,6 +853,19 @@ class Game
 		while (!exitCall)
 		{
 			Thread.Sleep(1000 / fps);
+			if (controls.finished)
+			{
+
+				player = new PlayerCharacter(new Position(1, 1));
+				entityController = new EntityController();
+				controls = new PlayerControls(player, currentMap );
+
+				Start();
+				controls.finished = false;
+				
+
+			}
+			entityController.UpdateEntities();
 
 			Console.Clear();
 			activeRenderer.DrawFrame();
@@ -684,32 +889,36 @@ class Game
 				controls.Move(new Position(player.Position.x, player.Position.y - 1));
 				break;
 			case ConsoleKey.UpArrow:
-                controls.Move(new Position(player.Position.x, player.Position.y - 1));
-                break;
+				controls.Move(new Position(player.Position.x, player.Position.y - 1));
+				break;
 
 			case ConsoleKey.S:
-                controls.Move(new Position(player.Position.x, player.Position.y + 1));
-                break;
+				controls.Move(new Position(player.Position.x, player.Position.y + 1));
+				break;
 
 			case ConsoleKey.DownArrow:
-                controls.Move(new Position(player.Position.x, player.Position.y + 1));
-                break;
+				controls.Move(new Position(player.Position.x, player.Position.y + 1));
+				break;
 
 			case ConsoleKey.A:
 				controls.Move(new Position(player.Position.x - 1, player.Position.y));
-                break;
+				break;
 
 			case ConsoleKey.LeftArrow:
-                controls.Move(new Position(player.Position.x - 1, player.Position.y));
-                break;
+				controls.Move(new Position(player.Position.x - 1, player.Position.y));
+				break;
 
 			case ConsoleKey.D:
 				controls.Move(new Position(player.Position.x + 1, player.Position.y));
-                break;
+				break;
 
 			case ConsoleKey.RightArrow:
-                controls.Move(new Position(player.Position.x + 1, player.Position.y));
-                break;
+				controls.Move(new Position(player.Position.x + 1, player.Position.y));
+				break;
+
+			case ConsoleKey.E:
+				controls.Attack();
+				break;
 		}
 	}
 }
