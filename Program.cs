@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Numerics;
 using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography.X509Certificates;
 using System.Transactions;
 
 namespace OOPgameLbrynth
@@ -13,6 +14,7 @@ namespace OOPgameLbrynth
 		public int x;
 		public int y;
 		public Position(int x, int y) { this.x = x; this.y = y; }
+		public Position(Position position) { this.x = position.x; this.y = position.y; }
 	}
 
 	interface MovementBehaviour
@@ -49,14 +51,36 @@ namespace OOPgameLbrynth
 
 	abstract class Entity : GameObject
 	{
+		private int health = 100;
+		private bool active = true;
 		public Entity(Position EntityPosition) : base(EntityPosition)
 		{
 
 		}
+
+		public void TakeDamage(int damage)
+		{
+			if (active)
+			{
+				health -= damage;
+				if (health < 0)
+				{
+					Perish();
+				}
+			}
+			else { }
+		}
+		public void Perish()
+		{
+			active = false;
+			passable = true;
+
+		}
 	}
 
-	class Projectile : Entity, MovementBehaviour
+	class Projectile : Entity, MovementBehaviour, AttackBehaviour
 	{
+		public uint damage;
 		public Projectile(Position ProjectPosition) : base(ProjectPosition)
 		{
 
@@ -65,13 +89,17 @@ namespace OOPgameLbrynth
 		{
 
 		}
+		public void AttackTarget(Entity targetEntity)
+		{
+			targetEntity.TakeDamage((int)damage);
+		}
 	}
 
 	class Archer : Entity, MovementBehaviour, AttackBehaviour
 	{
 		public Archer(Position EntityPosition) : base(EntityPosition)
 		{
-
+			symbol = 'D';
 		}
 		public void Move(Position targetPosition)
 		{
@@ -88,8 +116,11 @@ namespace OOPgameLbrynth
 
 	class Knight : Entity, MovementBehaviour, AttackBehaviour
 	{
+		public uint damage;
 		public Knight(Position EntityPosition) : base(EntityPosition)
 		{
+			symbol = 'k';
+			damage = 10;
 		}
 
 		public void Move(Position targetPosition)
@@ -102,6 +133,23 @@ namespace OOPgameLbrynth
 
 		}
 	}
+
+	class PlayerCharacter : Entity, AttackBehaviour
+	{
+		public uint damage;
+		public PlayerCharacter(Position PlayerPosition) : base(PlayerPosition)
+		{
+			symbol = 'p';
+		}
+
+		public void AttackTarget(Entity target)
+		{
+
+		}
+
+
+	}
+
 
 
 	class Map
@@ -187,14 +235,7 @@ class MapTile
 	public MapTile(GroundTile? groundTile, Position tilePosition)
 	{
 		this.groundTile = groundTile;
-		if (groundTile != null && groundTile.passable == true)
-		{	
-			Passable = true;
-		}
-		else
-		{
-			Passable = false;
-		}
+		UpdatePassable();
 		
 		this.tilePosition = tilePosition;
 		ObjectsWithinTile = new List<GameObject>();
@@ -207,6 +248,32 @@ class MapTile
 			? (groundTile.GetRepr())
 			: (ObjectsWithinTile[ObjectsWithinTile.Count - 1].GetRepr())
 			);
+	}
+
+	public void UpdatePassable()
+	{
+		bool isPassable = true;
+
+		if (groundTile != null)
+		{
+			if (groundTile.passable == true)
+			{
+				if (ObjectsWithinTile != null)
+				{
+					for (int i = 0; i < ObjectsWithinTile.Count; i++)
+					{
+						if (ObjectsWithinTile[i].passable == true)
+						{
+						}
+						else isPassable = false;
+					}
+				}
+			}
+			else isPassable = false;
+		}
+		else isPassable = false;
+		
+		Passable = isPassable;
 	}
 }
 
@@ -254,7 +321,7 @@ internal class Program
 class GameRenderer
 {
 	private Map currentMap;
-	public string CreatedFrame { get; private set; }
+	public string? CreatedFrame { get; private set; }
 
 	public GameRenderer(Map map)
 	{
@@ -397,7 +464,7 @@ class MazeGenerator
 				{
 					Position pos = new Position(i, j);
 
-                    mazeMap[i, j] = new MapTile(new DungeonWall(pos), pos);
+					mazeMap[i, j] = new MapTile(new DungeonWall(pos), pos);
 				}
 			}
 		}
@@ -413,16 +480,143 @@ class MazeGenerator
 }
 
 
+class EntityController
+{
+	public Map? currentMap;
 
+	private List<Entity> entities = new List<Entity>();
+
+
+
+	public void SpawnEntity(Entity entity)
+	{
+		Random randomness = new Random();
+
+		int width = currentMap.width;
+		int height = currentMap.height;
+		Position spawnPosition;
+
+		bool spawned = false;
+		int spawnTries = 0;
+		while (!spawned)
+		{
+			spawnPosition = new Position(randomness.Next(width - 2) + 1, randomness.Next(height - 2) + 1);
+			MapTile selectedMapTile = currentMap[spawnPosition];
+			if (!(selectedMapTile == null) && (selectedMapTile.Passable) && (selectedMapTile.ObjectsWithinTile.Count == 0))
+			{
+				selectedMapTile.ObjectsWithinTile.Add(entity);
+				selectedMapTile.UpdatePassable();
+				entity.Position = spawnPosition;
+				spawned = true;
+			}
+			else spawnTries++;
+		}
+	}
+
+
+}
+
+class PlayerControls
+{
+	private PlayerCharacter character;
+
+	public Map? currentMap;
+	
+
+	public PlayerControls(PlayerCharacter character, Map? currentMap)
+	{
+		this.character = character;
+		this.currentMap = currentMap;
+	}
+
+	public void Move(Position target)
+	{
+		MapTile targetTile = currentMap[target];
+
+		if (targetTile.Passable)
+		{
+			MapTile currentPlayerTile = currentMap[character.Position];
+
+			targetTile.ObjectsWithinTile.Add(character);
+			currentPlayerTile.ObjectsWithinTile.Remove(character);
+			character.Position = new Position(target);
+		}
+
+	}
+
+	public void Attack()
+	{
+		List<Entity> targetEntities = new List<Entity>();
+		if (character.Position.x > 1) //check for targets west of player
+		{
+			MapTile checkTile = currentMap[new Position(character.Position.x - 1, character.Position.y)];
+
+			for (int i = 0; i < checkTile.ObjectsWithinTile.Count; i++)
+			{
+				if (checkTile.ObjectsWithinTile[i] is Entity)
+				{
+					targetEntities.Add(checkTile.ObjectsWithinTile[i] as Entity);
+				}
+			}
+		}
+		if (character.Position.y > 1) // check for targets north of player
+		{
+			MapTile checkTile = currentMap[new Position(character.Position.x, character.Position.y - 1)];
+
+			for (int i = 0; i < checkTile.ObjectsWithinTile.Count; i++)
+			{
+				if (checkTile.ObjectsWithinTile[i] is Entity)
+				{
+					targetEntities.Add(checkTile.ObjectsWithinTile[i] as Entity);
+				}
+			}
+		}
+		if (character.Position.x < currentMap.width - 2) // check for targets east of player
+		{
+			MapTile checkTile = currentMap[new Position(character.Position.x + 1, character.Position.y)];
+
+			for (int i = 0; i < checkTile.ObjectsWithinTile.Count; i++)
+			{
+				if (checkTile.ObjectsWithinTile[i] is Entity)
+				{
+					targetEntities.Add(checkTile.ObjectsWithinTile[i] as Entity);
+				}
+			}
+		}
+
+		if (character.Position.y < currentMap.height - 2) // check for targets south of player
+		{
+			MapTile checkTile = currentMap[new Position(character.Position.x, character.Position.y + 1)];
+
+			for (int i = 0; i < checkTile.ObjectsWithinTile.Count; i++)
+			{
+				if (checkTile.ObjectsWithinTile[i] is Entity)
+				{
+					targetEntities.Add(checkTile.ObjectsWithinTile[i] as Entity);
+				}
+			}
+		}
+
+		for (int i = 0; i < targetEntities.Count; i++)
+		{
+			targetEntities[i].TakeDamage((int)character.damage);
+		}
+		
+	}
+}
 
 
 class Game
 {
-	public GameObject? player;
+	public PlayerCharacter? player;
+	public PlayerControls? controls;
 	private Map? currentMap;
 	private MazeGenerator? mazeGen;
 
 	private GameRenderer? activeRenderer;
+
+	private EntityController? entityController;
+
 
 	int fps = 20;
 	bool exitCall = false;
@@ -433,15 +627,30 @@ class Game
 		else this.fps = fps;
 	}
 
+	public Game()
+	{
+		player = new PlayerCharacter(new Position(1, 1));
+
+		controls = new PlayerControls(player, null);
+
+		entityController = new EntityController();
+	}
+
 	public void Start()
 	{
 		currentMap = new Map();
 		currentMap.Create();
+		controls.currentMap = currentMap;
+		
+
 
 		mazeGen = new MazeGenerator(currentMap);
 		mazeGen.generateMazeFullyConnected(new Position(1, 1));
 
-		activeRenderer = new GameRenderer(currentMap);
+        currentMap[player.Position].ObjectsWithinTile.Add(player);
+
+
+        activeRenderer = new GameRenderer(currentMap);
 
 
 	}
@@ -472,16 +681,35 @@ class Game
 				break;
 
 			case ConsoleKey.W:
+				controls.Move(new Position(player.Position.x, player.Position.y - 1));
 				break;
+			case ConsoleKey.UpArrow:
+                controls.Move(new Position(player.Position.x, player.Position.y - 1));
+                break;
 
 			case ConsoleKey.S:
-				break;
+                controls.Move(new Position(player.Position.x, player.Position.y + 1));
+                break;
+
+			case ConsoleKey.DownArrow:
+                controls.Move(new Position(player.Position.x, player.Position.y + 1));
+                break;
 
 			case ConsoleKey.A:
-				break;
+				controls.Move(new Position(player.Position.x - 1, player.Position.y));
+                break;
+
+			case ConsoleKey.LeftArrow:
+                controls.Move(new Position(player.Position.x - 1, player.Position.y));
+                break;
 
 			case ConsoleKey.D:
-				break;
+				controls.Move(new Position(player.Position.x + 1, player.Position.y));
+                break;
+
+			case ConsoleKey.RightArrow:
+                controls.Move(new Position(player.Position.x + 1, player.Position.y));
+                break;
 		}
 	}
 }
