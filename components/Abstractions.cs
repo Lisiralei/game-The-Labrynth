@@ -25,7 +25,11 @@
     {
         private Map? currentMap;
         protected int health = 100;
-        protected bool active = true;
+        public bool active = true;
+
+        public int actionCooldown;
+
+        public int movementCooldown;
 
         public List<Position> vision;
 
@@ -53,7 +57,7 @@
 
         }
 
-        public abstract void UpdateVision();
+        public abstract void UpdateVision(Map currentMap);
 
     }
 
